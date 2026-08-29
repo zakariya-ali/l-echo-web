@@ -31,7 +31,7 @@ jobs:
         run: em++ --version
 
       - name: Build web version
-        run: ./build-web.sh ./l-echo
+        run: bash ./build-web.sh ./l-echo
 
       - name: Upload browser build
         uses: actions/upload-artifact@v4
