@@ -1,13 +1,24 @@
-name: Build L-Echo Web
+name: Build and Deploy L-Echo Web
 
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     paths:
       - "apply_web_port.py"
       - "build-web.sh"
       - "web/**"
       - ".github/workflows/build-web.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -33,9 +44,28 @@ jobs:
       - name: Build web version
         run: bash ./build-web.sh ./l-echo
 
-      - name: Upload browser build
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload downloadable browser build
         uses: actions/upload-artifact@v4
         with:
           name: l-echo-web
           path: l-echo/dist/
           if-no-files-found: error
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: l-echo/dist/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
