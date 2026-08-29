@@ -47,6 +47,7 @@ em++ \
   -sALLOW_MEMORY_GROWTH=1 \
   -sASSERTIONS=1 \
   -sENVIRONMENT=web \
+  -sEXPORTED_RUNTIME_METHODS=ccall \
   "${PRELOAD[@]}" \
   --shell-file "$SHELL_FILE" \
   -o "$DIST/index.html"
