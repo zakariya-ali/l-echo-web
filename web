@@ -1,1 +1,102 @@
 
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>L-Echo Web</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #f3f0e8; color: #151515; display: grid; place-items: center; }
+    main { width: min(1100px, 100%); padding: 24px; }
+    .frame { background: #fff; border: 1px solid #d7d3c9; border-radius: 18px; overflow: hidden; box-shadow: 0 18px 50px rgba(0,0,0,.08); }
+    .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid #e4e0d6; }
+    .title { font-weight: 700; letter-spacing: .02em; }
+    .status { font-size: 13px; color: #666; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #e4e0d6; background: #faf9f6; }
+    select, button { min-height: 36px; border-radius: 8px; border: 1px solid #ccc7bb; background: #fff; color: #171717; padding: 6px 10px; font: inherit; }
+    button { cursor: pointer; font-weight: 600; }
+    .viewport { position: relative; aspect-ratio: 4 / 3; background: white; }
+    canvas.emscripten { display: block; width: 100%; height: 100%; outline: none; }
+    .help { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 12px 16px 16px; font-size: 13px; color: #5e5a52; }
+    kbd { font: inherit; color: #222; background: #f2f0ea; border: 1px solid #d8d4ca; border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; }
+    #output { margin: 0; max-height: 130px; overflow: auto; padding: 10px 16px; background: #181818; color: #d8d8d8; font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
+    @media (max-width: 600px) { main { padding: 10px; } .bar { align-items: flex-start; flex-direction: column; gap: 4px; } .toolbar select { flex: 1 1 180px; min-width: 0; } }
+  </style>
+</head>
+<body>
+<main>
+  <section class="frame">
+    <div class="bar">
+      <div class="title">L-Echo Web</div>
+      <div class="status" id="status">Loading WebAssembly…</div>
+    </div>
+    <form class="toolbar" id="level-form">
+      <label for="level">Level</label>
+      <select id="level" name="level">
+        <option>sample1.xml</option>
+        <option>LEcho1.xml</option>
+        <option>A1.xml.real</option>
+        <option>A4.xml.real</option>
+        <option>simple.xml</option>
+        <option>stair.xml</option>
+        <option>walkway.xml</option>
+        <option>hole_demo.xml</option>
+        <option>large_hole_demo.xml</option>
+        <option>launcher_demo.xml</option>
+        <option>perspective_absence.xml</option>
+        <option>perspective_existence.xml</option>
+        <option>perspective_fall.xml</option>
+        <option>perspective_jumping.xml</option>
+        <option>perspective_movement.xml</option>
+      </select>
+      <button type="submit">Load level</button>
+    </form>
+    <div class="viewport">
+      <canvas class="emscripten" id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+    </div>
+    <div class="help">
+      <span><kbd>P</kbd> start/pause</span>
+      <span><kbd>W</kbd> walk</span>
+      <span><kbd>R</kbd> run</span>
+      <span><kbd>←↑↓→</kbd> rotate</span>
+      <span>drag mouse to rotate</span>
+      <span>click the game once before using keys</span>
+    </div>
+    <pre id="output" aria-live="polite"></pre>
+  </section>
+</main>
+<script>
+  const output = document.getElementById('output');
+  const status = document.getElementById('status');
+  const canvas = document.getElementById('canvas');
+  const form = document.getElementById('level-form');
+  const levelSelect = document.getElementById('level');
+  const params = new URLSearchParams(location.search);
+  const requestedLevel = params.get('level') || 'sample1.xml';
+
+  if ([...levelSelect.options].some(o => o.value === requestedLevel)) {
+    levelSelect.value = requestedLevel;
+  }
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const url = new URL(location.href);
+    url.searchParams.set('level', levelSelect.value);
+    location.href = url.toString();
+  });
+
+  var Module = {
+    canvas,
+    arguments: [requestedLevel],
+    print: (...args) => { output.textContent += args.join(' ') + '\n'; output.scrollTop = output.scrollHeight; },
+    printErr: (...args) => { output.textContent += args.join(' ') + '\n'; output.scrollTop = output.scrollHeight; },
+    setStatus: (text) => { status.textContent = text || 'Ready'; },
+    onRuntimeInitialized: () => { status.textContent = `Running ${requestedLevel}`; canvas.focus(); }
+  };
+  canvas.addEventListener('pointerdown', () => canvas.focus());
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>
