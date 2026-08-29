@@ -36,6 +36,7 @@ em++ \
   *.cpp pugixml/*.cpp \
   -I. \
   -std=gnu++98 \
+  -DSTRICT_MEM \
   -DTIXML_USE_STL \
   -DUSE_IK \
   -DUSE_PUGIXML \
