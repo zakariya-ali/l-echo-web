@@ -31,9 +31,10 @@ if ((${#PRELOAD[@]} == 0)); then
 fi
 
 SHELL_FILE="$KIT_DIR/web/shell.html"
+COMPAT_FILE="$KIT_DIR/web/echo_web_compat.cpp"
 
 em++ \
-  *.cpp pugixml/*.cpp \
+  "$COMPAT_FILE" *.cpp pugixml/*.cpp \
   -I. \
   -std=gnu++98 \
   -DSTRICT_MEM \
