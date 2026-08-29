@@ -1,0 +1,41 @@
+name: Build L-Echo Web
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "apply_web_port.py"
+      - "build-web.sh"
+      - "web/**"
+      - ".github/workflows/build-web.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout port kit
+        uses: actions/checkout@v6
+
+      - name: Checkout upstream L-Echo
+        uses: actions/checkout@v6
+        with:
+          repository: LibreGamesArchive/l-echo
+          path: l-echo
+
+      - name: Setup Emscripten
+        uses: emscripten-core/setup-emsdk@v15
+        with:
+          version: latest
+
+      - name: Verify toolchain
+        run: em++ --version
+
+      - name: Build web version
+        run: ./build-web.sh ./l-echo
+
+      - name: Upload browser build
+        uses: actions/upload-artifact@v4
+        with:
+          name: l-echo-web
+          path: l-echo/dist/
+          if-no-files-found: error
