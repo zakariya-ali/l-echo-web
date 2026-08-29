@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${1:-.}"
 ROOT="$(cd "$ROOT" && pwd)"
 DIST="$ROOT/dist"
@@ -10,7 +11,7 @@ if ! command -v em++ >/dev/null 2>&1; then
   exit 1
 fi
 
-python3 "$(cd "$(dirname "$0")" && pwd)/apply_web_port.py" "$ROOT"
+python3 "$KIT_DIR/apply_web_port.py" "$ROOT"
 mkdir -p "$DIST"
 rm -f "$DIST"/index.{html,js,wasm,data}
 
@@ -29,7 +30,7 @@ if ((${#PRELOAD[@]} == 0)); then
   exit 1
 fi
 
-SHELL_FILE="$(cd "$(dirname "$0")" && pwd)/web/shell.html"
+SHELL_FILE="$KIT_DIR/web/shell.html"
 
 em++ \
   *.cpp pugixml/*.cpp \
@@ -48,7 +49,7 @@ em++ \
   --shell-file "$SHELL_FILE" \
   -o "$DIST/index.html"
 
-cp "$(cd "$(dirname "$0")" && pwd)/web/serve.py" "$DIST/serve.py"
+cp "$KIT_DIR/web/serve.py" "$DIST/serve.py"
 
 echo
 echo "Built: $DIST/index.html"
