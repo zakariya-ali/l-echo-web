@@ -12,6 +12,7 @@ if ! command -v em++ >/dev/null 2>&1; then
 fi
 
 python3 "$KIT_DIR/apply_web_port.py" "$ROOT"
+python3 "$KIT_DIR/web/patch_primitives.py" "$ROOT"
 mkdir -p "$DIST"
 rm -f "$DIST"/index.{html,js,wasm,data}
 
@@ -31,10 +32,9 @@ if ((${#PRELOAD[@]} == 0)); then
 fi
 
 SHELL_FILE="$KIT_DIR/web/shell.html"
-COMPAT_FILE="$KIT_DIR/web/echo_web_compat.cpp"
 
 em++ \
-  "$COMPAT_FILE" *.cpp pugixml/*.cpp \
+  *.cpp pugixml/*.cpp "$KIT_DIR/web/echo_web_compat.cpp" \
   -I. \
   -std=gnu++98 \
   -DSTRICT_MEM \
