@@ -66,7 +66,6 @@ if "ECHO_WEB_FRAME_GATE" not in text:
     if n != 1:
         raise SystemExit("Could not patch main.cpp: display() signature changed upstream")
 
-    # Wrap the old sleep-based limiter at the bottom of display().
     old = """\tint elapsed = glutGet(GLUT_ELAPSED_TIME) - prev_time;\n\tif(elapsed < WAIT)\n\t{\n\t\tECHO_SLEEP(WAIT - elapsed);\n\t\t//ECHO_PRINT(\"not fskip\\n\");\n\t}\n\t//frameskip =(\n\t//else\n\t//\tECHO_PRINT(\"fskip: %f\\n\", elapsed - WAIT);\n\tprev_time = glutGet(GLUT_ELAPSED_TIME);\n"""
     new = """#ifndef ECHO_WEB\n\tint elapsed = glutGet(GLUT_ELAPSED_TIME) - prev_time;\n\tif(elapsed < WAIT)\n\t{\n\t\tECHO_SLEEP(WAIT - elapsed);\n\t\t//ECHO_PRINT(\"not fskip\\n\");\n\t}\n\t//frameskip =(\n\t//else\n\t//\tECHO_PRINT(\"fskip: %f\\n\", elapsed - WAIT);\n\tprev_time = glutGet(GLUT_ELAPSED_TIME);\n#endif\n"""
     if old not in text:
@@ -115,7 +114,6 @@ for name in ("main.cpp", "echo_gfx.cpp"):
             write(name, text)
             print(f"patched {name} GLU include")
 
-
 # 5) Emscripten's built-in GLUT layer does not provide the old GLUT bitmap-font path reliably.
 #    The Web shell supplies the visible controls/level selector, so compile the legacy HUD text calls as no-ops.
 name = "main.cpp"
@@ -136,5 +134,94 @@ if "ECHO_WEB_BITMAP_FONT_SHIM" not in text:
         raise SystemExit("Could not patch main.cpp: ENTER key define changed upstream")
     write(name, text)
     print("patched main.cpp GLUT bitmap-font shim")
+
+# 6) Make repeated stage initialization safe. The original 2010 code only deleted the
+#    previous stage, not the previous character, and also left the global 'started' flag set.
+#    That was mostly hidden when a new process was used for every level; seamless web loading
+#    needs a clean game-state reset without leaking one character object per switch.
+name = "echo_ns.cpp"
+text = read(name)
+if "ECHO_WEB_LEVEL_RESET" not in text:
+    pattern = r"(\tvoid init\(stage\* st\)\s*\n\t\{)"
+    repl = (r"\1\n"
+            r"#ifdef ECHO_WEB\n"
+            r"\t\t// ECHO_WEB_LEVEL_RESET: fully reset per-level state before replacing the stage.\n"
+            r"\t\tif(main_char != NULL)\n"
+            r"\t\t{\n"
+            r"\t\t\tdelete main_char;\n"
+            r"\t\t\tmain_char = NULL;\n"
+            r"\t\t}\n"
+            r"\t\tstarted = false;\n"
+            r"\t\tangle.x = 0;\n"
+            r"\t\tangle.y = 0;\n"
+            r"\t\tangle.z = 0;\n"
+            r"\t\tnull_char_opacity = NULL_CHAR_OPACITY_MIN;\n"
+            r"\t\topacity_incr = true;\n"
+            r"#endif")
+    text, n = re.subn(pattern, repl, text, count=1)
+    if n != 1:
+        raise SystemExit("Could not patch echo_ns.cpp: init(stage*) layout changed upstream")
+    write(name, text)
+    print("patched echo_ns.cpp seamless level reset")
+
+# 7) Export a tiny web API. This lets JavaScript replace the current XML stage inside the
+#    already-running WASM instance, query completion, and restart without a page refresh.
+name = "main.cpp"
+text = read(name)
+if "ECHO_WEB_LEVEL_API" not in text:
+    include_marker = '#include "echo_platform.h"\n'
+    if include_marker not in text:
+        raise SystemExit("Could not patch main.cpp: echo_platform include not found")
+    text = text.replace(
+        include_marker,
+        include_marker + "#ifdef ECHO_WEB\n\t#include <emscripten/emscripten.h>\n#endif\n",
+        1,
+    )
+
+    marker = "\n#ifdef ECHO_NDS\n\t//refresh the subscreen mode"
+    if marker not in text:
+        raise SystemExit("Could not patch main.cpp: post-load insertion point changed upstream")
+
+    api = r'''
+
+#ifdef ECHO_WEB
+// ECHO_WEB_LEVEL_API: browser-facing controls that keep the same WASM/GL context alive.
+extern "C"
+{
+	EMSCRIPTEN_KEEPALIVE int echo_web_load_level(const char* fname)
+	{
+		if(fname == NULL || fname[0] == '\0')
+			return 0;
+
+		load(fname);
+		loading = 0;
+		load_frame = 0;
+		was_paused = 0;
+		file_index = 0;
+		file_start = 0;
+		prev_time = glutGet(GLUT_ELAPSED_TIME);
+
+		return (!menu_mode && echo_ns::current_stage != NULL) ? 1 : 0;
+	}
+
+	EMSCRIPTEN_KEEPALIVE int echo_web_goals_left()
+	{
+		if(menu_mode || echo_ns::current_stage == NULL || echo_ns::main_char == NULL)
+			return -1;
+		return echo_ns::goals_left();
+	}
+
+	EMSCRIPTEN_KEEPALIVE int echo_web_num_goals()
+	{
+		if(menu_mode || echo_ns::current_stage == NULL)
+			return -1;
+		return echo_ns::num_goals();
+	}
+}
+#endif
+'''
+    text = text.replace(marker, api + marker, 1)
+    write(name, text)
+    print("patched main.cpp seamless web level API")
 
 print("L-Echo web source patch complete")
