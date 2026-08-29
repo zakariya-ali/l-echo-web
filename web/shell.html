@@ -8,20 +8,37 @@
     :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; background: #f3f0e8; color: #151515; display: grid; place-items: center; }
-    main { width: min(1100px, 100%); padding: 24px; }
+    main { width: min(1120px, 100%); padding: 24px; }
     .frame { background: #fff; border: 1px solid #d7d3c9; border-radius: 18px; overflow: hidden; box-shadow: 0 18px 50px rgba(0,0,0,.08); }
     .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid #e4e0d6; }
     .title { font-weight: 700; letter-spacing: .02em; }
-    .status { font-size: 13px; color: #666; }
+    .status { font-size: 13px; color: #666; white-space: nowrap; }
     .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #e4e0d6; background: #faf9f6; }
+    .toolbar .spacer { flex: 1 1 12px; }
     select, button { min-height: 36px; border-radius: 8px; border: 1px solid #ccc7bb; background: #fff; color: #171717; padding: 6px 10px; font: inherit; }
     button { cursor: pointer; font-weight: 600; }
-    .viewport { position: relative; aspect-ratio: 4 / 3; background: white; }
+    button:hover:not(:disabled) { background: #f2efe7; }
+    button:disabled { cursor: default; opacity: .4; }
+    button.ready-next { box-shadow: inset 0 0 0 1px #222; }
+    .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #625f58; user-select: none; }
+    .toggle input { margin: 0; }
+    .viewport { position: relative; aspect-ratio: 4 / 3; background: #fff; overflow: hidden; }
     canvas.emscripten { display: block; width: 100%; height: 100%; outline: none; }
+    .transition { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: rgba(243,240,232,.96); opacity: 0; pointer-events: none; transition: opacity 140ms ease; }
+    .transition.active { opacity: 1; }
+    .transition span { font-size: 13px; font-weight: 700; letter-spacing: .04em; color: #4d4a43; transform: translateY(3px); transition: transform 140ms ease; }
+    .transition.active span { transform: translateY(0); }
     .help { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 12px 16px 16px; font-size: 13px; color: #5e5a52; }
     kbd { font: inherit; color: #222; background: #f2f0ea; border: 1px solid #d8d4ca; border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; }
-    #output { margin: 0; max-height: 130px; overflow: auto; padding: 10px 16px; background: #181818; color: #d8d8d8; font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
-    @media (max-width: 600px) { main { padding: 10px; } .bar { align-items: flex-start; flex-direction: column; gap: 4px; } .toolbar select { flex: 1 1 180px; min-width: 0; } }
+    details.debug { border-top: 1px solid #e4e0d6; background: #181818; color: #d8d8d8; }
+    details.debug summary { cursor: pointer; padding: 8px 16px; font: 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; color: #aaa; }
+    #output { margin: 0; max-height: 180px; overflow: auto; padding: 0 16px 12px; background: #181818; color: #d8d8d8; font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; }
+    @media (max-width: 700px) {
+      main { padding: 10px; }
+      .bar { align-items: flex-start; flex-direction: column; gap: 4px; }
+      .toolbar select { flex: 1 1 180px; min-width: 0; }
+      .toolbar .spacer { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -31,7 +48,9 @@
       <div class="title">L-Echo Web</div>
       <div class="status" id="status">Loading WebAssembly…</div>
     </div>
+
     <form class="toolbar" id="level-form">
+      <button type="button" id="previous-level" title="Previous level">←</button>
       <label for="level">Level</label>
       <select id="level" name="level">
         <option>sample1.xml</option>
@@ -50,51 +69,205 @@
         <option>perspective_jumping.xml</option>
         <option>perspective_movement.xml</option>
       </select>
-      <button type="submit">Load level</button>
+      <button type="submit">Load</button>
+      <button type="button" id="restart-level" title="Restart current level">Restart</button>
+      <button type="button" id="next-level" title="Next level">Next →</button>
+      <span class="spacer"></span>
+      <label class="toggle"><input type="checkbox" id="auto-next" /> auto-next on completion</label>
+      <button type="button" id="fullscreen">Fullscreen</button>
     </form>
-    <div class="viewport">
+
+    <div class="viewport" id="viewport">
       <canvas class="emscripten" id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+      <div class="transition" id="transition" aria-hidden="true"><span id="transition-label">Loading…</span></div>
     </div>
+
     <div class="help">
       <span><kbd>P</kbd> start/pause</span>
       <span><kbd>W</kbd> walk</span>
       <span><kbd>R</kbd> run</span>
       <span><kbd>←↑↓→</kbd> rotate</span>
       <span>drag mouse to rotate</span>
-      <span>click the game once before using keys</span>
+      <span>levels now switch without reloading the page</span>
     </div>
-    <pre id="output" aria-live="polite"></pre>
+
+    <details class="debug">
+      <summary>Debug output</summary>
+      <pre id="output" aria-live="polite"></pre>
+    </details>
   </section>
 </main>
+
 <script>
   const output = document.getElementById('output');
   const status = document.getElementById('status');
   const canvas = document.getElementById('canvas');
+  const viewport = document.getElementById('viewport');
   const form = document.getElementById('level-form');
   const levelSelect = document.getElementById('level');
-  const params = new URLSearchParams(location.search);
-  const requestedLevel = params.get('level') || 'sample1.xml';
+  const previousButton = document.getElementById('previous-level');
+  const nextButton = document.getElementById('next-level');
+  const restartButton = document.getElementById('restart-level');
+  const fullscreenButton = document.getElementById('fullscreen');
+  const autoNext = document.getElementById('auto-next');
+  const transition = document.getElementById('transition');
+  const transitionLabel = document.getElementById('transition-label');
 
-  if ([...levelSelect.options].some(o => o.value === requestedLevel)) {
-    levelSelect.value = requestedLevel;
+  const levels = [...levelSelect.options].map(option => option.value);
+  const params = new URLSearchParams(location.search);
+  const requested = params.get('level');
+  const requestedLevel = levels.includes(requested) ? requested : 'sample1.xml';
+
+  let currentLevel = requestedLevel;
+  let runtimeReady = false;
+  let switching = false;
+  let completionSeen = false;
+  let autoNextTimer = null;
+
+  levelSelect.value = requestedLevel;
+  autoNext.checked = localStorage.getItem('l-echo-auto-next') === '1';
+
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+  function appendOutput(args) {
+    output.textContent += args.join(' ') + '\n';
+    output.scrollTop = output.scrollHeight;
+  }
+
+  function updateNavigation() {
+    const index = levels.indexOf(currentLevel);
+    previousButton.disabled = switching || !runtimeReady || index <= 0;
+    nextButton.disabled = switching || !runtimeReady || index < 0 || index >= levels.length - 1;
+    restartButton.disabled = switching || !runtimeReady;
+    levelSelect.disabled = switching || !runtimeReady;
+    nextButton.classList.toggle('ready-next', completionSeen && !nextButton.disabled);
+  }
+
+  function setUrl(level, mode) {
+    const url = new URL(location.href);
+    url.searchParams.set('level', level);
+    const state = { level };
+    if (mode === 'push') history.pushState(state, '', url);
+    else if (mode === 'replace') history.replaceState(state, '', url);
+  }
+
+  async function switchLevel(level, { historyMode = 'push', label = null } = {}) {
+    if (!runtimeReady || switching || !levels.includes(level)) return false;
+
+    switching = true;
+    completionSeen = false;
+    clearTimeout(autoNextTimer);
+    updateNavigation();
+
+    transitionLabel.textContent = label || `Loading ${level}`;
+    transition.classList.add('active');
+    status.textContent = `Loading ${level}…`;
+
+    // Give the fade a frame to become visible before the synchronous C++ loader runs.
+    await sleep(150);
+
+    try {
+      const ok = Module.ccall('echo_web_load_level', 'number', ['string'], [level]);
+      if (!ok) throw new Error(`L-Echo could not load ${level}`);
+
+      currentLevel = level;
+      levelSelect.value = level;
+      if (historyMode) setUrl(level, historyMode);
+      status.textContent = `Running ${level}`;
+      canvas.focus();
+      return true;
+    } catch (error) {
+      console.error(error);
+      appendOutput([error.message || String(error)]);
+      status.textContent = 'Level load failed';
+      return false;
+    } finally {
+      await sleep(100);
+      transition.classList.remove('active');
+      switching = false;
+      updateNavigation();
+    }
+  }
+
+  function adjacentLevel(direction) {
+    const index = levels.indexOf(currentLevel);
+    const target = levels[index + direction];
+    if (target) switchLevel(target);
   }
 
   form.addEventListener('submit', event => {
     event.preventDefault();
-    const url = new URL(location.href);
-    url.searchParams.set('level', levelSelect.value);
-    location.href = url.toString();
+    switchLevel(levelSelect.value);
   });
+
+  previousButton.addEventListener('click', () => adjacentLevel(-1));
+  nextButton.addEventListener('click', () => adjacentLevel(1));
+  restartButton.addEventListener('click', () => switchLevel(currentLevel, { historyMode: null, label: 'Restarting level' }));
+
+  autoNext.addEventListener('change', () => {
+    localStorage.setItem('l-echo-auto-next', autoNext.checked ? '1' : '0');
+  });
+
+  fullscreenButton.addEventListener('click', async () => {
+    try {
+      if (!document.fullscreenElement) await viewport.requestFullscreen();
+      else await document.exitFullscreen();
+      canvas.focus();
+    } catch (error) {
+      console.error(error);
+    }
+  });
+
+  window.addEventListener('popstate', () => {
+    const value = new URLSearchParams(location.search).get('level');
+    const level = levels.includes(value) ? value : 'sample1.xml';
+    if (level !== currentLevel) switchLevel(level, { historyMode: null });
+  });
+
+  canvas.addEventListener('pointerdown', () => canvas.focus());
+
+  // The game already knows when all goals are reached. Poll the tiny exported getter so
+  // the surrounding web UI can expose completion and optionally move to the next stage.
+  setInterval(() => {
+    if (!runtimeReady || switching) return;
+
+    try {
+      const total = Module.ccall('echo_web_num_goals', 'number', [], []);
+      const left = Module.ccall('echo_web_goals_left', 'number', [], []);
+      const complete = total > 0 && left === 0;
+
+      if (complete && !completionSeen) {
+        completionSeen = true;
+        status.textContent = `Complete · ${currentLevel}`;
+        updateNavigation();
+
+        const index = levels.indexOf(currentLevel);
+        if (autoNext.checked && index >= 0 && index < levels.length - 1) {
+          autoNextTimer = setTimeout(() => adjacentLevel(1), 900);
+        }
+      }
+    } catch (_) {
+      // Runtime may still be between frames during startup; the next poll will retry.
+    }
+  }, 400);
+
+  updateNavigation();
 
   var Module = {
     canvas,
     arguments: [requestedLevel],
-    print: (...args) => { output.textContent += args.join(' ') + '\n'; output.scrollTop = output.scrollHeight; },
-    printErr: (...args) => { output.textContent += args.join(' ') + '\n'; output.scrollTop = output.scrollHeight; },
-    setStatus: (text) => { status.textContent = text || 'Ready'; },
-    onRuntimeInitialized: () => { status.textContent = `Running ${requestedLevel}`; canvas.focus(); }
+    print: (...args) => appendOutput(args),
+    printErr: (...args) => appendOutput(args),
+    setStatus: text => { if (!runtimeReady) status.textContent = text || 'Ready'; },
+    onRuntimeInitialized: () => {
+      runtimeReady = true;
+      currentLevel = requestedLevel;
+      setUrl(currentLevel, 'replace');
+      status.textContent = `Running ${currentLevel}`;
+      updateNavigation();
+      canvas.focus();
+    }
   };
-  canvas.addEventListener('pointerdown', () => canvas.focus());
 </script>
 {{{ SCRIPT }}}
 </body>
